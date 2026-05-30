@@ -1,0 +1,6 @@
+{
+  "name": "P2P Mining Clicker",
+  "description": "A real-time peer-to-peer multiplayer mining clicker game where players compete to earn the most money in 5 minutes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

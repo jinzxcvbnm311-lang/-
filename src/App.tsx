@@ -21,7 +21,8 @@ import {
   Compass,
   ArrowRight,
   UserCheck,
-  Flame
+  Flame,
+  Trophy
 } from 'lucide-react';
 import { P2PManager } from './network';
 import { PlayerState, GameEventLog, GameStatus, UpgradesState } from './types';
@@ -216,11 +217,19 @@ export default function App() {
   const [gameEventLogs, setGameEventLogs] = useState<GameEventLog[]>([]);
   const [chatMessage, setChatMessage] = useState<string>('');
 
+  // Cosmic Roulette States
+  const [isSpinning, setIsSpinning] = useState<boolean>(false);
+  const [visualSpinLabel, setVisualSpinLabel] = useState<string>('차원 대기 중');
+  const [visualSpinColor, setVisualSpinColor] = useState<string>('text-indigo-400 font-bold');
+  const [betValue, setBetValue] = useState<string>('');
+
   // Refs for state caching to avoid closures inside websocket callbacks
   const scoreRef = useRef<number>(0);
   const clicksRef = useRef<number>(0);
   const clickPowerRef = useRef<number>(1);
   const upgradesRef = useRef<UpgradesState>(upgrades);
+  const allPlayersRef = useRef<PlayerState[]>([]);
+  const gameStatusRef = useRef<GameStatus>('WAITING');
 
   // Initialize random default name
   useEffect(() => {
@@ -235,6 +244,38 @@ export default function App() {
   useEffect(() => { clicksRef.current = clicks; }, [clicks]);
   useEffect(() => { clickPowerRef.current = clickPower; }, [clickPower]);
   useEffect(() => { upgradesRef.current = upgrades; }, [upgrades]);
+  useEffect(() => { allPlayersRef.current = allPlayers; }, [allPlayers]);
+  useEffect(() => { gameStatusRef.current = gameStatus; }, [gameStatus]);
+
+  // Spacebar key listener (No repeating clicks allowed when holding)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        const activeEl = document.activeElement;
+        // Allow typing spaces inside standard inputs/buttons if any exist
+        if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) {
+          return;
+        }
+
+        e.preventDefault();
+
+        // BLOCK KEY HELD DOWN REPETITIONS
+        if (e.repeat) return;
+
+        if (gameStatus === 'PLAYING') {
+          // Trigger centered mine strike coordinates with randomized scattering offset
+          const simX = 160 + (Math.random() * 80 - 40);
+          const simY = 165 + (Math.random() * 80 - 40);
+          triggerMining(simX, simY);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [gameStatus, clickPower, upgrades, isLuckyStoneActive]);
 
   // Audio Toggle
   const toggleMute = () => {
@@ -542,7 +583,10 @@ export default function App() {
 
     const interval = setInterval(() => {
       setGameTimer((prev) => {
-        if (gameStatus === 'PLAYING') {
+        const curStatus = gameStatusRef.current;
+        const curPlayers = allPlayersRef.current;
+
+        if (curStatus === 'PLAYING') {
           if (prev <= 1) {
             // End the match!
             setGameStatus('ENDED');
@@ -550,25 +594,25 @@ export default function App() {
             
             // Final sorting
             setTimeout(() => {
-              broadcastGameState(allPlayers, 'ENDED', 0);
+              broadcastGameState(allPlayersRef.current, 'ENDED', 0);
             }, 100);
             
             return 0;
           }
           
           const newTime = prev - 1;
-          broadcastGameState(allPlayers, 'PLAYING', newTime);
+          broadcastGameState(curPlayers, 'PLAYING', newTime);
           return newTime;
         } else {
           // Keep broadcasting heartbeat during waiting
-          broadcastGameState(allPlayers, gameStatus, prev);
+          broadcastGameState(curPlayers, curStatus, prev);
           return prev;
         }
       });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [networkManager, gameStatus, allPlayers]);
+  }, [networkManager]);
 
   /**
    * Passive Auto Mining Drills: Increment click score every 1 second
@@ -722,14 +766,10 @@ export default function App() {
   };
 
   /**
-   * Action: Hit Mine (Core gameplay)
+   * Action: Core Mining Logic
    */
-  const handleMineClick = (e: MouseEvent<HTMLDivElement>) => {
+  const triggerMining = (x: number, y: number) => {
     if (gameStatus !== 'PLAYING') return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
 
     // Critical Chance calculation
     const baseCritChance = 0.05; // 5% base
@@ -753,13 +793,25 @@ export default function App() {
     }
 
     // Spawn 1% Capital Increment Lucky Stone (황금석)
-    // Custom chance: base 1% + 0.5% per level of Magnetizer Upgrade
     const baseStoneChance = 0.01;
     const currentLuckyStoneChance = baseStoneChance + upgrades.magnetLevel * 0.005;
 
     if (!isLuckyStoneActive && Math.random() < currentLuckyStoneChance) {
       triggerLuckyStoneSpawn();
     }
+  };
+
+  /**
+   * Action: Hit Mine (Core gameplay)
+   */
+  const handleMineClick = (e: MouseEvent<HTMLDivElement>) => {
+    if (gameStatus !== 'PLAYING') return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    triggerMining(x, y);
   };
 
   /**
@@ -886,6 +938,103 @@ export default function App() {
     }
   };
 
+  /**
+   * Cosmic Roulette mechanics
+   */
+  const setBetPercent = (percent: number) => {
+    if (score <= 0) {
+      setBetValue('0');
+      return;
+    }
+    const computedBet = Math.floor(score * percent);
+    setBetValue(computedBet.toString());
+  };
+
+  const handleSpinRoulette = () => {
+    if (isSpinning || score <= 0 || gameStatus !== 'PLAYING') return;
+
+    const numericBet = Math.max(0, parseInt(betValue || '0', 10));
+    const actualBet = Math.min(numericBet, score);
+
+    if (actualBet <= 0) {
+      alert('베팅 금액을 1원 이상 투입해주세요!');
+      return;
+    }
+
+    setScore((prev) => prev - actualBet);
+    setIsSpinning(true);
+    sound.playClick();
+
+    const outcomesList = [
+      { label: '꽝 ❌', mult: 0, color: 'text-rose-400 font-extrabold scale-110 drop-shadow-[0_0_10px_rgba(244,63,94,0.4)]' },
+      { label: '2배 🔥', mult: 2, color: 'text-emerald-400 font-black' },
+      { label: '5배 💥', mult: 5, color: 'text-fuchsia-400 font-black' },
+      { label: '100배 🚀', mult: 100, color: 'text-cyan-400 font-black animate-pulse' },
+      { label: '1,000배 ✨', mult: 1000, color: 'text-amber-400 font-black' },
+      { label: '10,000,000배 👑', mult: 10000000, color: 'text-yellow-300 font-extrabold text-lg animate-bounce drop-shadow-[0_0_15px_rgba(253,224,71,0.6)]' }
+    ];
+
+    let roll = Math.random();
+    let spinCount = 0;
+
+    const intervalId = setInterval(() => {
+      const tempId = Math.floor(Math.random() * outcomesList.length);
+      const tempOutcome = outcomesList[tempId];
+      setVisualSpinLabel(tempOutcome.label);
+      setVisualSpinColor(tempOutcome.color);
+      sound.playClick();
+
+      spinCount++;
+      if (spinCount > 15) {
+        clearInterval(intervalId);
+
+        let selectedOutcome;
+        let finalMult = 0;
+        let logType: 'chat' | 'lucky' | 'upgrade' | 'win' = 'chat';
+
+        if (roll < 0.0001) { // 0.01% chance
+          selectedOutcome = outcomesList[5];
+          finalMult = 10000000;
+          logType = 'win';
+        } else if (roll < 0.0301) { // 3% chance
+          selectedOutcome = outcomesList[4];
+          finalMult = 1000;
+          logType = 'lucky';
+        } else if (roll < 0.1001) { // 7% chance
+          selectedOutcome = outcomesList[3];
+          finalMult = 100;
+          logType = 'lucky';
+        } else if (roll < 0.4001) { // 30% chance
+          selectedOutcome = outcomesList[2];
+          finalMult = 5;
+          logType = 'upgrade';
+        } else if (roll < 0.8001) { // 40% chance
+          selectedOutcome = outcomesList[1];
+          finalMult = 2;
+          logType = 'upgrade';
+        } else { // 20% chance (approx 19.99%)
+          selectedOutcome = outcomesList[0];
+          finalMult = 0;
+          logType = 'chat';
+        }
+
+        const reward = Math.floor(actualBet * finalMult);
+        setScore((prev) => prev + reward);
+        setVisualSpinLabel(selectedOutcome.label);
+        setVisualSpinColor(selectedOutcome.color);
+        setIsSpinning(false);
+
+        if (finalMult > 0) {
+          sound.playLucky();
+          addEventLog(playerName, `🎰 룰렛에 ${actualBet.toLocaleString()}원을 베팅해서 [${selectedOutcome.label}] 당첨! (+${reward.toLocaleString()}원 획득)`, logType);
+        } else {
+          sound.playAlert();
+          addEventLog(playerName, `🎰 룰렛에 ${actualBet.toLocaleString()}원을 베팅했으나 [꽝]이 나왔습니다!`, 'chat');
+        }
+      }
+    }, 100);
+  };
+
   // Pricing formula definitions
   const getBaseUpgradeCost = (lv: number) => {
     // Starts at 5, grows by 10% each level
@@ -939,11 +1088,16 @@ export default function App() {
       
       // Select random increment between 0 and 20
       const randomPower = Math.floor(Math.random() * 21);
-      setClickPower((prev) => prev + randomPower);
-      setUpgrades((prev) => ({ ...prev, randomLevel: prev.randomLevel + 1 }));
+      // Increment clickPower by randomPower as well as the standard drill's +1
+      setClickPower((prev) => prev + randomPower + 1);
+      setUpgrades((prev) => ({ 
+        ...prev, 
+        randomLevel: prev.randomLevel + 1,
+        baseLevel: prev.baseLevel + 1 
+      }));
 
       sound.playUpgrade();
-      addEventLog(playerName, `🎲 양자 합성 강화를 실행하여 무작위 클릭 파워가 +${randomPower}원 대폭 상승했습니다!`, 'upgrade');
+      addEventLog(playerName, `🎲 양자 합성 강화를 실행하여 무작위 클릭 파워가 +${randomPower}원 대폭 상승하고, 기본 드릴의 레벨도 함께 강화되었습니다!`, 'upgrade');
     } else {
       sound.playAlert();
     }
@@ -1203,59 +1357,123 @@ export default function App() {
           {/* Master 3-Grid Workspace Grid */}
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 overflow-hidden bg-indigo-950/20 relative">
 
-            {/* TOP 3 LIVE FLOATING MINIMAP (오른쪽 위의 1, 2, 3위만 수려하게 보임 마스킹) */}
-            <div className="absolute top-4 right-4 bg-indigo-900/85 backdrop-blur-md p-4 rounded-2xl border-2 border-indigo-500 w-72 shadow-xl z-30">
-              <div className="text-xs text-indigo-300 font-bold uppercase mb-3 flex justify-between items-center border-b border-indigo-700/40 pb-2">
-                <span className="flex items-center gap-1.5">
-                  <Award className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
-                  Rankings
-                </span>
-                <span className="text-indigo-400 font-mono text-[10px]">Top 3 ({allPlayers.length}명)</span>
-              </div>
-              <div className="space-y-2">
-                {topThree.length === 0 ? (
-                  <p className="text-[10px] text-indigo-300/60 text-center py-2">연결된 대원이 없습니다.</p>
-                ) : (
-                  topThree.map((player, idx) => {
-                    const isMe = player.id === (networkManager?.myId || '');
-                    let itemStyle = 'bg-indigo-950/40 border border-indigo-900 flex items-center justify-between rounded-xl px-2.5 py-1.5 text-xs transition-all';
-                    let rankNumStyle = 'font-black text-xs mr-1.5';
-                    let valStyle = 'font-mono text-sm';
-
-                    if (idx === 0) {
-                      itemStyle = 'bg-indigo-900/40 border-2 border-amber-500/50 flex items-center justify-between rounded-xl px-2.5 py-1.5 text-xs transition-all shadow-md';
-                      rankNumStyle = 'text-amber-400 font-black';
-                      valStyle = 'text-emerald-400 font-mono font-bold';
-                    } else if (idx === 1) {
-                      itemStyle = 'bg-indigo-950/40 border border-indigo-900/60 opacity-80 flex items-center justify-between rounded-xl px-2.5 py-1.5 text-xs transition-all';
-                      rankNumStyle = 'text-slate-300 font-black';
-                      valStyle = 'text-indigo-200 font-mono font-bold text-xs';
-                    } else if (idx === 2) {
-                      itemStyle = 'bg-indigo-950/40 border border-indigo-900/60 opacity-60 flex items-center justify-between rounded-xl px-2.5 py-1.5 text-xs transition-all';
-                      rankNumStyle = 'text-amber-700 font-black';
-                      valStyle = 'text-indigo-200 font-mono text-xs';
-                    }
-
-                    return (
-                      <div key={player.id} className={itemStyle}>
-                        <div className="flex items-center gap-2 truncate">
-                          <span className={rankNumStyle}>
-                            {idx === 0 ? '1st' : idx === 1 ? '2nd' : '3rd'}
-                          </span>
-                          <span className={`font-bold truncate ${idx === 0 ? 'text-amber-300' : 'text-slate-200'} ${isMe ? 'underline underline-offset-2 decoration-amber-400/50 text-emerald-400' : ''}`}>
-                            {player.name} {isMe && '(나)'}
-                          </span>
-                        </div>
-                        <span className={valStyle}>{player.score.toLocaleString()}원</span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
             {/* PANEL A (LEFT): UPGRADES CORE PANEL (lg:col-span-4) */}
             <div className="lg:col-span-4 border-r-4 border-indigo-900 bg-indigo-900/10 overflow-y-auto px-6 py-6 flex flex-col space-y-5 h-full scrollbar-thin">
+              
+              {/* 1. COSMIC ROULETTE (우주 차원 룰렛) */}
+              <div id="cosmic-roulette" className="bg-indigo-950/80 border-2 border-indigo-500 rounded-3xl p-5 shadow-2xl relative overflow-hidden backdrop-blur-md flex flex-col space-y-4">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-pink-500 to-indigo-500"></div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-amber-400 rotate-12" />
+                    <h3 className="text-lg font-black bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 bg-clip-text text-transparent select-none">우주 대차원 룰렛</h3>
+                  </div>
+                  <span className="text-[9px] font-mono font-bold text-indigo-300 bg-indigo-900/50 border border-indigo-700/50 px-2 py-0.5 rounded-full uppercase tracking-wider select-none">
+                    Roulette Sys
+                  </span>
+                </div>
+
+                <p className="text-[11px] text-indigo-200 leading-relaxed">
+                  자산을 베팅하여 엄청난 차원의 부를 노리세요!<br />
+                  (<span className="text-rose-400 font-bold">20% 꽝</span> | 40% 2배 | 30% 5배 | 7% 100배 | 3% 1,000배 | <span className="text-amber-400 font-black">0.01% 1,000만배</span>)
+                </p>
+
+                {/* Spinning board displays outcome */}
+                <div className="bg-indigo-900/30 border border-indigo-800 rounded-2xl py-4 px-3 flex flex-col items-center justify-center min-h-[90px] relative overflow-hidden">
+                  <div className="absolute inset-0 bg-radial-gradient from-indigo-500/5 to-transparent pointer-events-none"></div>
+                  <span className="text-[10px] font-mono text-indigo-400 uppercase tracking-widest font-black mb-1 select-none">차원 탐색 현황</span>
+                  <div className={`text-xl font-mono font-black transition-all ${visualSpinColor} ${isSpinning ? 'animate-pulse scale-105' : 'scale-100'}`}>
+                    {visualSpinLabel}
+                  </div>
+                  {isSpinning && (
+                    <div className="mt-2 w-16 h-1 bg-indigo-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-amber-400 w-full animate-[loading_1.5s_infinite]"></div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Bet Custom input & quick bets */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold text-indigo-300 uppercase">베팅 원금 설정:</span>
+                    <span className="text-[10px] font-mono text-amber-400 font-semibold">보유: {score.toLocaleString()}원</span>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      disabled={isSpinning || gameStatus !== 'PLAYING'}
+                      value={betValue}
+                      onChange={(e) => setBetValue(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="베팅할 액수 설정 (원)"
+                      className="w-full bg-indigo-950/95 border-2 border-indigo-800 focus:border-amber-400 rounded-xl py-2.5 px-3 text-xs text-white placeholder-indigo-500 outline-none transition-all font-mono text-center disabled:opacity-50"
+                    />
+                  </div>
+
+                  {/* Bet Percent sizing helper buttons */}
+                  <div className="grid grid-cols-5 gap-1.5 text-[10px] font-mono">
+                    <button
+                      type="button"
+                      disabled={isSpinning || gameStatus !== 'PLAYING'}
+                      onClick={() => setBetPercent(0.1)}
+                      className="bg-indigo-900/40 hover:bg-indigo-800 border border-indigo-800 rounded py-1 px-1.5 text-indigo-300 transition-colors disabled:opacity-40 cursor-pointer text-center font-bold"
+                    >
+                      10%
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSpinning || gameStatus !== 'PLAYING'}
+                      onClick={() => setBetPercent(0.25)}
+                      className="bg-indigo-900/40 hover:bg-indigo-800 border border-indigo-800 rounded py-1 px-1.5 text-indigo-300 transition-colors disabled:opacity-40 cursor-pointer text-center font-bold"
+                    >
+                      25%
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSpinning || gameStatus !== 'PLAYING'}
+                      onClick={() => setBetPercent(0.5)}
+                      className="bg-indigo-900/40 hover:bg-indigo-800 border border-indigo-800 rounded py-1 px-1.5 text-indigo-300 transition-colors disabled:opacity-40 cursor-pointer text-center font-bold"
+                    >
+                      50%
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSpinning || gameStatus !== 'PLAYING'}
+                      onClick={() => setBetPercent(1.0)}
+                      className="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 rounded py-1 px-1.5 text-amber-300 transition-colors disabled:opacity-40 cursor-pointer text-center font-black uppercase"
+                    >
+                      올인
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSpinning || gameStatus !== 'PLAYING'}
+                      onClick={() => setBetValue('')}
+                      className="bg-indigo-950 hover:bg-indigo-900 border border-indigo-800 rounded py-1 px-1.5 text-red-400 transition-colors disabled:opacity-40 cursor-pointer text-center font-bold"
+                    >
+                      CLR
+                    </button>
+                  </div>
+                </div>
+
+                {/* Spin Launcher CTA */}
+                <button
+                  type="button"
+                  onClick={handleSpinRoulette}
+                  disabled={isSpinning || gameStatus !== 'PLAYING' || !betValue || parseInt(betValue, 10) <= 0}
+                  className={`w-full py-3.5 rounded-xl font-black text-xs tracking-wider transition-all uppercase flex items-center justify-center gap-1.5 select-none ${
+                    isSpinning || gameStatus !== 'PLAYING' || !betValue || parseInt(betValue, 10) <= 0
+                      ? 'bg-indigo-950 text-indigo-500 border-2 border-dashed border-indigo-800/85 opacity-60 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-indigo-950 border-b-4 border-amber-700 hover:border-amber-600 shadow-md shadow-amber-500/10 active:translate-y-0.5 active:border-b-2 cursor-pointer'
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                  스핀 가동! 차원 도박
+                </button>
+              </div>
+
+              <div className="h-0.5 bg-indigo-900/60 w-full rounded-full"></div>
+
               <div>
                 <h3 className="text-2xl font-black text-white flex items-center gap-2">
                   <span>UPGRADES SHOP</span>
@@ -1513,11 +1731,11 @@ export default function App() {
                   
                   {p2pRole === 'HOST' && (
                     <button
-                      onClick={handleStartGame}
+                      onClick={handleResetGame}
                       className="mt-6 w-full bg-indigo-600 hover:bg-indigo-500 text-white font-black py-3 px-6 rounded-xl border-b-4 border-indigo-800 active:scale-95 transition-all shadow-md flex items-center justify-center gap-1.5"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
-                      새 매치로 다시 겨루기
+                      대기실로 돌아가서 새 매치 설정
                     </button>
                   )}
                 </div>
@@ -1615,70 +1833,137 @@ export default function App() {
 
             </div>
 
-            {/* PANEL C (RIGHT): GAME EVENT LOGS & REALTIME CHAT (lg:col-span-3) */}
-            <div className="lg:col-span-3 bg-indigo-900/10 flex flex-col h-full overflow-hidden p-4 border-l-4 border-indigo-900">
+            {/* PANEL C (RIGHT): STANDALONE RANKING SYSTEM & LIVE LOGS (lg:col-span-3) */}
+            <div className="lg:col-span-3 bg-indigo-900/10 flex flex-col h-full overflow-hidden p-4 border-l-4 border-indigo-900 gap-4">
               
-              {/* Event Logs header */}
-              <div className="border-b border-indigo-800/60 pb-3 mb-3 shrink-0">
-                <span className="text-xs font-black text-fuchsia-400 tracking-wider font-mono flex items-center gap-1.5 uppercase">
-                  <MessageSquare className="w-4 h-4 text-fuchsia-400" />
-                  글로벌 정보망 & 대화
-                </span>
-                <p className="text-[10px] text-indigo-300 font-semibold mt-1">대원들의 업그레이드 전황 및 채팅 대역</p>
+              {/* 1. STANDALONE RANKING BOARD (Separate block) */}
+              <div className="flex-[3] min-h-[280px] bg-indigo-950/40 border border-indigo-800/40 rounded-2xl p-3.5 flex flex-col overflow-hidden shadow-inner">
+                <div className="flex items-center justify-between mb-3 border-b border-indigo-800/60 pb-2.5 shrink-0">
+                  <span className="text-xs font-black text-amber-400 tracking-wider font-mono flex items-center gap-1.5 uppercase">
+                    <Trophy className="w-4 h-4 text-amber-400 animate-pulse" />
+                    실시간 대원 랭킹
+                  </span>
+                  <span className="text-[10px] font-mono font-bold text-indigo-300 bg-indigo-800/40 px-2 py-0.5 rounded-full">
+                    ALL ({allPlayers.length}명)
+                  </span>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+                  {sortedLeaderboard.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-center text-indigo-400/50 text-xs font-mono">
+                      연결 대원이 없습니다.
+                    </div>
+                  ) : (
+                    sortedLeaderboard.map((player, idx) => {
+                      const isMe = player.id === (networkManager?.myId || '');
+                      let rankBg = 'bg-indigo-950/30 border border-indigo-900/40';
+                      let nameStyle = 'text-indigo-200';
+                      let medalIcon = null;
+                      
+                      if (idx === 0) {
+                        rankBg = 'bg-amber-500/10 border-2 border-amber-500/40';
+                        nameStyle = 'text-amber-200 font-extrabold';
+                        medalIcon = <Crown className="w-4 h-4 text-amber-400 fill-amber-400/25 shrink-0" />;
+                      } else if (idx === 1) {
+                        rankBg = 'bg-slate-350/10 border-2 border-slate-350/30';
+                        nameStyle = 'text-slate-200 font-bold';
+                        medalIcon = <Award className="w-4 h-4 text-slate-300 shrink-0" />;
+                      } else if (idx === 2) {
+                        rankBg = 'bg-amber-900/15 border-2 border-amber-800/25';
+                        nameStyle = 'text-amber-300 font-bold';
+                        medalIcon = <Award className="w-4 h-4 text-amber-800 shrink-0" />;
+                      }
+
+                      return (
+                        <div 
+                          key={player.id} 
+                          className={`p-2.5 rounded-xl flex flex-col space-y-1.5 transition-all ${rankBg} ${isMe ? 'ring-2 ring-emerald-500/60 bg-emerald-950/10' : ''}`}
+                        >
+                          <div className="flex items-center justify-between text-xs font-semibold gap-2">
+                            <div className="flex items-center gap-1.5 truncate">
+                              {medalIcon ? (
+                                medalIcon
+                              ) : (
+                                <span className="w-4 h-4 rounded bg-indigo-900/60 border border-indigo-800/50 text-indigo-300 text-[10px] font-mono font-black flex items-center justify-center shrink-0">
+                                  {idx + 1}
+                                </span>
+                              )}
+                              <span className={`truncate ${nameStyle} ${isMe ? 'text-emerald-400 font-black' : ''}`}>
+                                {player.name} {isMe && <span className="text-[9px] text-emerald-400 font-normal ml-0.5">(나)</span>}
+                              </span>
+                            </div>
+                            <span className="font-mono text-amber-400 font-black tracking-tight text-right shrink-0">
+                              {player.score.toLocaleString()}원
+                            </span>
+                          </div>
+                          
+                          {/* Micro details displaying active stats */}
+                          <div className="flex items-center justify-between text-[10px] text-indigo-300/65 font-mono border-t border-indigo-900/35 pt-1.5 line-clamp-1">
+                            <span className="flex items-center gap-0.5">
+                              <Pickaxe className="w-2.5 h-2.5 text-indigo-400" />
+                              클릭: {player.clicks || 0}회
+                            </span>
+                            <span className="flex items-center gap-0.5">
+                              <Sparkles className="w-2.5 h-2.5 text-indigo-400" />
+                              강화: Lv.{
+                                (player.upgrades ? (
+                                  player.upgrades.baseLevel + player.upgrades.randomLevel + player.upgrades.autoDrillLevel + player.upgrades.critLevel + player.upgrades.magnetLevel
+                                ) : 0)
+                              }
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
 
-              {/* Message Streams view block */}
-              <div className="flex-1 overflow-y-auto space-y-2 mb-3 pr-1 scrollbar-thin">
-                {gameEventLogs.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-center text-indigo-400/60 text-xs font-mono">
-                    채굴 로그가 비어 있습니다.
-                  </div>
-                ) : (
-                  gameEventLogs.map((log) => {
-                    let logStyle = 'bg-indigo-950/45 text-indigo-200 border border-indigo-900/50';
-                    let label = `${log.playerName}: `;
-                    
-                    if (log.playerName === 'SYSTEM') {
-                      logStyle = 'bg-indigo-900/60 text-amber-300 border border-amber-500/30 font-semibold';
-                      label = '⚙️ [알림] ';
-                    } else if (log.type === 'upgrade') {
-                      logStyle = 'bg-fuchsia-950/40 text-fuchsia-200 border border-fuchsia-500/20';
-                    } else if (log.type === 'lucky') {
-                      logStyle = 'bg-emerald-950/40 text-emerald-200 border border-emerald-500/20';
-                    } else if (log.type === 'win') {
-                      logStyle = 'bg-amber-950/60 text-amber-300 font-bold border-2 border-amber-500/45';
-                    }
+              {/* 2. REALTIME BROADCASTS EVENT LOGS (No chat form) */}
+              <div className="flex-[2] min-h-[160px] bg-indigo-950/20 border border-indigo-900/25 rounded-2xl p-3.5 flex flex-col overflow-hidden">
+                <div className="flex items-center justify-between mb-2.5 border-b border-indigo-800/40 pb-2 shrink-0">
+                  <span className="text-xs font-black text-rose-400 tracking-wider font-mono flex items-center gap-1.5 uppercase">
+                    <Flame className="w-4 h-4 text-rose-400 animate-pulse" />
+                    실시간 탐사보
+                  </span>
+                  <span className="text-[10px] font-mono text-indigo-400">LOGS</span>
+                </div>
 
-                    return (
-                      <div 
-                        key={log.id} 
-                        className={`p-2 rounded-xl text-[11px] leading-relaxed break-keep font-mono ${logStyle}`}
-                      >
-                        <span className="font-bold">{label}</span>
-                        <span>{log.message}</span>
-                      </div>
-                    );
-                  })
-                )}
+                <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+                  {gameEventLogs.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-center text-indigo-400/50 text-xs font-mono">
+                      탐보 대역이 비어 있습니다.
+                    </div>
+                  ) : (
+                    gameEventLogs.map((log) => {
+                      let logStyle = 'bg-indigo-950/45 text-indigo-200 border border-indigo-900/40';
+                      let label = `${log.playerName}: `;
+                      
+                      if (log.playerName === 'SYSTEM') {
+                        logStyle = 'bg-indigo-900/50 text-amber-300 border border-amber-500/30 font-semibold';
+                        label = '⚙️ [알림] ';
+                      } else if (log.type === 'upgrade') {
+                        logStyle = 'bg-fuchsia-950/40 text-fuchsia-200 border border-fuchsia-500/20';
+                      } else if (log.type === 'lucky') {
+                        logStyle = 'bg-emerald-950/40 text-emerald-200 border border-emerald-500/20';
+                      } else if (log.type === 'win') {
+                        logStyle = 'bg-amber-950/60 text-amber-300 font-bold border-2 border-amber-500/40';
+                      }
+
+                      return (
+                        <div 
+                          key={log.id} 
+                          className={`p-2 rounded-xl text-[11px] leading-relaxed break-keep font-mono ${logStyle}`}
+                        >
+                          <span className="font-bold">{label}</span>
+                          <span>{log.message}</span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
 
-              {/* Chat Send Form */}
-              <form onSubmit={handleSendChat} className="flex gap-1.5 shrink-0">
-                <input
-                  type="text"
-                  maxLength={50}
-                  value={chatMessage}
-                  onChange={(e) => setChatMessage(e.target.value)}
-                  placeholder="대화 내용 전송..."
-                  className="flex-1 bg-indigo-950 border-2 border-indigo-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-indigo-400 outline-none focus:border-amber-500 transition-all font-mono"
-                />
-                <button
-                  type="submit"
-                  className="w-9 h-9 bg-amber-500 hover:bg-amber-400 text-indigo-950 rounded-xl flex items-center justify-center transition-all cursor-pointer shadow-md shadow-amber-500/10 active:scale-95"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </form>
             </div>
 
           </div>
@@ -1756,11 +2041,11 @@ export default function App() {
                 <div className="flex items-center gap-3">
                   {p2pRole === 'HOST' ? (
                     <button
-                      onClick={handleStartGame}
+                      onClick={handleResetGame}
                       className="flex-1 bg-amber-500 hover:bg-amber-400 text-indigo-950 font-black py-4 rounded-2xl hover:shadow-xl transition-all text-xs flex items-center justify-center gap-2 cursor-pointer shadow-md active:translate-y-1 shadow-amber-500/10"
                     >
                       <RotateCcw className="w-4 h-4" />
-                      새 대결 세션 다시 실행 (방장용)
+                      대기실로 돌아가서 새 매치 개시 (방장용)
                     </button>
                   ) : (
                     <div className="flex-1 text-center bg-indigo-950 border-2 border-indigo-900 p-4 rounded-2xl text-xs text-indigo-300 font-semibold">

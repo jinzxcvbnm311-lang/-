@@ -1360,120 +1360,6 @@ export default function App() {
             {/* PANEL A (LEFT): UPGRADES CORE PANEL (lg:col-span-4) */}
             <div className="lg:col-span-4 border-r-4 border-indigo-900 bg-indigo-900/10 overflow-y-auto px-6 py-6 flex flex-col space-y-5 h-full scrollbar-thin">
               
-              {/* 1. COSMIC ROULETTE (우주 차원 룰렛) */}
-              <div id="cosmic-roulette" className="bg-indigo-950/80 border-2 border-indigo-500 rounded-3xl p-5 shadow-2xl relative overflow-hidden backdrop-blur-md flex flex-col space-y-4">
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-pink-500 to-indigo-500"></div>
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-5 h-5 text-amber-400 rotate-12" />
-                    <h3 className="text-lg font-black bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 bg-clip-text text-transparent select-none">우주 대차원 룰렛</h3>
-                  </div>
-                  <span className="text-[9px] font-mono font-bold text-indigo-300 bg-indigo-900/50 border border-indigo-700/50 px-2 py-0.5 rounded-full uppercase tracking-wider select-none">
-                    Roulette Sys
-                  </span>
-                </div>
-
-                <p className="text-[11px] text-indigo-200 leading-relaxed">
-                  자산을 베팅하여 엄청난 차원의 부를 노리세요!<br />
-                  (<span className="text-rose-400 font-bold">20% 꽝</span> | 40% 2배 | 30% 5배 | 7% 100배 | 3% 1,000배 | <span className="text-amber-400 font-black">0.01% 1,000만배</span>)
-                </p>
-
-                {/* Spinning board displays outcome */}
-                <div className="bg-indigo-900/30 border border-indigo-800 rounded-2xl py-4 px-3 flex flex-col items-center justify-center min-h-[90px] relative overflow-hidden">
-                  <div className="absolute inset-0 bg-radial-gradient from-indigo-500/5 to-transparent pointer-events-none"></div>
-                  <span className="text-[10px] font-mono text-indigo-400 uppercase tracking-widest font-black mb-1 select-none">차원 탐색 현황</span>
-                  <div className={`text-xl font-mono font-black transition-all ${visualSpinColor} ${isSpinning ? 'animate-pulse scale-105' : 'scale-100'}`}>
-                    {visualSpinLabel}
-                  </div>
-                  {isSpinning && (
-                    <div className="mt-2 w-16 h-1 bg-indigo-800 rounded-full overflow-hidden">
-                      <div className="h-full bg-amber-400 w-full animate-[loading_1.5s_infinite]"></div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Bet Custom input & quick bets */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono font-bold text-indigo-300 uppercase">베팅 원금 설정:</span>
-                    <span className="text-[10px] font-mono text-amber-400 font-semibold">보유: {score.toLocaleString()}원</span>
-                  </div>
-
-                  <div className="relative">
-                    <input
-                      type="text"
-                      disabled={isSpinning || gameStatus !== 'PLAYING'}
-                      value={betValue}
-                      onChange={(e) => setBetValue(e.target.value.replace(/[^0-9]/g, ''))}
-                      placeholder="베팅할 액수 설정 (원)"
-                      className="w-full bg-indigo-950/95 border-2 border-indigo-800 focus:border-amber-400 rounded-xl py-2.5 px-3 text-xs text-white placeholder-indigo-500 outline-none transition-all font-mono text-center disabled:opacity-50"
-                    />
-                  </div>
-
-                  {/* Bet Percent sizing helper buttons */}
-                  <div className="grid grid-cols-5 gap-1.5 text-[10px] font-mono">
-                    <button
-                      type="button"
-                      disabled={isSpinning || gameStatus !== 'PLAYING'}
-                      onClick={() => setBetPercent(0.1)}
-                      className="bg-indigo-900/40 hover:bg-indigo-800 border border-indigo-800 rounded py-1 px-1.5 text-indigo-300 transition-colors disabled:opacity-40 cursor-pointer text-center font-bold"
-                    >
-                      10%
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isSpinning || gameStatus !== 'PLAYING'}
-                      onClick={() => setBetPercent(0.25)}
-                      className="bg-indigo-900/40 hover:bg-indigo-800 border border-indigo-800 rounded py-1 px-1.5 text-indigo-300 transition-colors disabled:opacity-40 cursor-pointer text-center font-bold"
-                    >
-                      25%
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isSpinning || gameStatus !== 'PLAYING'}
-                      onClick={() => setBetPercent(0.5)}
-                      className="bg-indigo-900/40 hover:bg-indigo-800 border border-indigo-800 rounded py-1 px-1.5 text-indigo-300 transition-colors disabled:opacity-40 cursor-pointer text-center font-bold"
-                    >
-                      50%
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isSpinning || gameStatus !== 'PLAYING'}
-                      onClick={() => setBetPercent(1.0)}
-                      className="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 rounded py-1 px-1.5 text-amber-300 transition-colors disabled:opacity-40 cursor-pointer text-center font-black uppercase"
-                    >
-                      올인
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isSpinning || gameStatus !== 'PLAYING'}
-                      onClick={() => setBetValue('')}
-                      className="bg-indigo-950 hover:bg-indigo-900 border border-indigo-800 rounded py-1 px-1.5 text-red-400 transition-colors disabled:opacity-40 cursor-pointer text-center font-bold"
-                    >
-                      CLR
-                    </button>
-                  </div>
-                </div>
-
-                {/* Spin Launcher CTA */}
-                <button
-                  type="button"
-                  onClick={handleSpinRoulette}
-                  disabled={isSpinning || gameStatus !== 'PLAYING' || !betValue || parseInt(betValue, 10) <= 0}
-                  className={`w-full py-3.5 rounded-xl font-black text-xs tracking-wider transition-all uppercase flex items-center justify-center gap-1.5 select-none ${
-                    isSpinning || gameStatus !== 'PLAYING' || !betValue || parseInt(betValue, 10) <= 0
-                      ? 'bg-indigo-950 text-indigo-500 border-2 border-dashed border-indigo-800/85 opacity-60 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-indigo-950 border-b-4 border-amber-700 hover:border-amber-600 shadow-md shadow-amber-500/10 active:translate-y-0.5 active:border-b-2 cursor-pointer'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                  스핀 가동! 차원 도박
-                </button>
-              </div>
-
-              <div className="h-0.5 bg-indigo-900/60 w-full rounded-full"></div>
-
               <div>
                 <h3 className="text-2xl font-black text-white flex items-center gap-2">
                   <span>UPGRADES SHOP</span>
@@ -1919,49 +1805,116 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 2. REALTIME BROADCASTS EVENT LOGS (No chat form) */}
-              <div className="flex-[2] min-h-[160px] bg-indigo-950/20 border border-indigo-900/25 rounded-2xl p-3.5 flex flex-col overflow-hidden">
-                <div className="flex items-center justify-between mb-2.5 border-b border-indigo-800/40 pb-2 shrink-0">
-                  <span className="text-xs font-black text-rose-400 tracking-wider font-mono flex items-center gap-1.5 uppercase">
-                    <Flame className="w-4 h-4 text-rose-400 animate-pulse" />
-                    실시간 탐사보
+              {/* 2. COSMIC ROULETTE (우주 차원 룰렛) */}
+              <div id="cosmic-roulette" className="flex-[2] min-h-[220px] bg-indigo-950/80 border-2 border-indigo-500/80 rounded-2xl p-4 shadow-xl relative overflow-y-auto backdrop-blur-md flex flex-col space-y-3 scrollbar-thin">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-amber-500 via-pink-500 to-indigo-500"></div>
+                
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-amber-400 rotate-12 animate-pulse" />
+                    <h3 className="text-xs font-black bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-200 bg-clip-text text-transparent select-none">우주 대차원 룰렛</h3>
+                  </div>
+                  <span className="text-[8px] font-mono font-bold text-indigo-300 bg-indigo-900/50 border border-indigo-700/50 px-1.5 py-0.5 rounded-full uppercase tracking-wider select-none">
+                    Roulette SYS
                   </span>
-                  <span className="text-[10px] font-mono text-indigo-400">LOGS</span>
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
-                  {gameEventLogs.length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-center text-indigo-400/50 text-xs font-mono">
-                      탐보 대역이 비어 있습니다.
-                    </div>
-                  ) : (
-                    gameEventLogs.map((log) => {
-                      let logStyle = 'bg-indigo-950/45 text-indigo-200 border border-indigo-900/40';
-                      let label = `${log.playerName}: `;
-                      
-                      if (log.playerName === 'SYSTEM') {
-                        logStyle = 'bg-indigo-900/50 text-amber-300 border border-amber-500/30 font-semibold';
-                        label = '⚙️ [알림] ';
-                      } else if (log.type === 'upgrade') {
-                        logStyle = 'bg-fuchsia-950/40 text-fuchsia-200 border border-fuchsia-500/20';
-                      } else if (log.type === 'lucky') {
-                        logStyle = 'bg-emerald-950/40 text-emerald-200 border border-emerald-500/20';
-                      } else if (log.type === 'win') {
-                        logStyle = 'bg-amber-950/60 text-amber-300 font-bold border-2 border-amber-500/40';
-                      }
+                <p className="text-[10px] text-indigo-200 leading-normal">
+                  베팅 액수를 투입해 차원의 부를 노리세요!<br />
+                  (<span className="text-rose-400 font-bold">20% 꽝</span> | 40% 2배 | 30% 5배 | 7% 100배 | 3% 1,000배 | <span className="text-amber-400 font-black text-[11px]">0.01% 1,000만배</span>)
+                </p>
 
-                      return (
-                        <div 
-                          key={log.id} 
-                          className={`p-2 rounded-xl text-[11px] leading-relaxed break-keep font-mono ${logStyle}`}
-                        >
-                          <span className="font-bold">{label}</span>
-                          <span>{log.message}</span>
-                        </div>
-                      );
-                    })
+                {/* Spinning board displays outcome */}
+                <div className="bg-indigo-900/30 border border-indigo-800 rounded-xl py-2.5 px-3 flex flex-col items-center justify-center min-h-[68px] relative overflow-hidden shrink-0">
+                  <div className="absolute inset-0 bg-radial-gradient from-indigo-500/5 to-transparent pointer-events-none"></div>
+                  <span className="text-[8px] font-mono text-indigo-400 uppercase tracking-widest font-black mb-0.5 select-none text-center">차원 탐색 현황</span>
+                  <div className={`text-sm font-mono font-black transition-all ${visualSpinColor} ${isSpinning ? 'animate-pulse scale-105' : 'scale-100'}`}>
+                    {visualSpinLabel}
+                  </div>
+                  {isSpinning && (
+                    <div className="mt-1.5 w-16 h-1 bg-indigo-800 rounded-full overflow-hidden">
+                      <div className="h-full bg-amber-400 w-full animate-[loading_1.5s_infinite]"></div>
+                    </div>
                   )}
                 </div>
+
+                {/* Bet Custom input & quick bets */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[9px] font-mono">
+                    <span className="font-bold text-indigo-300 uppercase">베팅 원금 설정:</span>
+                    <span className="text-amber-400 font-semibold">보유: {score.toLocaleString()}원</span>
+                  </div>
+
+                  <div className="relative">
+                    <input
+                      type="text"
+                      disabled={isSpinning || gameStatus !== 'PLAYING'}
+                      value={betValue}
+                      onChange={(e) => setBetValue(e.target.value.replace(/[^0-9]/g, ''))}
+                      placeholder="베팅할 액수 설정 (원)"
+                      className="w-full bg-indigo-950/95 border-2 border-indigo-800 focus:border-amber-400 rounded-xl py-2 px-3 text-[11px] text-white placeholder-indigo-500 outline-none transition-all font-mono text-center disabled:opacity-50"
+                    />
+                  </div>
+
+                  {/* Bet Percent sizing helper buttons */}
+                  <div className="grid grid-cols-5 gap-1 text-[9px] font-mono">
+                    <button
+                      type="button"
+                      disabled={isSpinning || gameStatus !== 'PLAYING'}
+                      onClick={() => setBetPercent(0.1)}
+                      className="bg-indigo-900/40 hover:bg-indigo-800 border border-indigo-800 rounded py-0.5 px-0.5 text-indigo-300 transition-colors disabled:opacity-40 cursor-pointer text-center font-bold"
+                    >
+                      10%
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSpinning || gameStatus !== 'PLAYING'}
+                      onClick={() => setBetPercent(0.25)}
+                      className="bg-indigo-900/40 hover:bg-indigo-800 border border-indigo-800 rounded py-0.5 px-0.5 text-indigo-300 transition-colors disabled:opacity-40 cursor-pointer text-center font-bold"
+                    >
+                      25%
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSpinning || gameStatus !== 'PLAYING'}
+                      onClick={() => setBetPercent(0.5)}
+                      className="bg-indigo-900/40 hover:bg-indigo-800 border border-indigo-800 rounded py-0.5 px-0.5 text-indigo-300 transition-colors disabled:opacity-40 cursor-pointer text-center font-bold"
+                    >
+                      50%
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSpinning || gameStatus !== 'PLAYING'}
+                      onClick={() => setBetPercent(1.0)}
+                      className="bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 rounded py-0.5 px-0.5 text-amber-300 transition-colors disabled:opacity-40 cursor-pointer text-center font-black uppercase"
+                    >
+                      올인
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isSpinning || gameStatus !== 'PLAYING'}
+                      onClick={() => setBetValue('')}
+                      className="bg-indigo-950 hover:bg-indigo-900 border border-indigo-800 rounded py-0.5 px-0.5 text-red-400 transition-colors disabled:opacity-40 cursor-pointer text-center font-bold"
+                    >
+                      CLR
+                    </button>
+                  </div>
+                </div>
+
+                {/* Spin Launcher CTA */}
+                <button
+                  type="button"
+                  onClick={handleSpinRoulette}
+                  disabled={isSpinning || gameStatus !== 'PLAYING' || !betValue || parseInt(betValue, 10) <= 0}
+                  className={`w-full py-2.5 rounded-xl font-black text-[11px] tracking-wider transition-all uppercase flex items-center justify-center gap-1.5 select-none shrink-0 ${
+                    isSpinning || gameStatus !== 'PLAYING' || !betValue || parseInt(betValue, 10) <= 0
+                      ? 'bg-indigo-950 text-indigo-500 border-2 border-dashed border-indigo-800/85 opacity-60 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-indigo-950 border-b-4 border-amber-700 hover:border-amber-600 shadow-md shadow-amber-500/10 active:translate-y-0.5 active:border-b-2 cursor-pointer'
+                  }`}
+                >
+                  <Sparkles className="w-3 h-3 animate-spin" />
+                  스핀 가동! 차원 도박
+                </button>
               </div>
 
             </div>
